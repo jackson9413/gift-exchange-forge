@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Gift Exchange Forge</title>
+<link rel="stylesheet" href="/static/styles.css" />
+</head>
+<body>
+<header class="topbar">
+  <div class="brand">
+    <span class="mark">GE</span>
+    <div>
+      <h1>Gift Exchange Forge</h1>
+      <p class="sub">Plan a Secret Santa that actually works</p>
+    </div>
+  </div>
+  <div class="topbar-right">
+    <select id="exchange-select" aria-label="Current exchange"></select>
+    <button id="btn-new" class="btn primary">New exchange</button>
+    <button id="btn-samples" class="btn">Samples</button>
+  </div>
+</header>
+
+<nav class="tabs" role="tablist">
+  <button class="tab active" data-panel="panel-setup" role="tab">Setup</button>
+  <button class="tab" data-panel="panel-draw" role="tab">Draw</button>
+  <button class="tab" data-panel="panel-readiness" role="tab">Readiness</button>
+  <button class="tab" data-panel="panel-calendar" role="tab">Calendar</button>
+  <button class="tab" data-panel="panel-reveal" role="tab">Reveal</button>
+</nav>
+
+<main>
+  <section id="panel-setup" class="panel active">
+    <div class="grid two">
+      <div class="card">
+        <h2>Exchange settings</h2>
+        <form id="settings-form" class="stack">
+          <label>Name<input id="set-name" type="text" placeholder="Family Secret Santa 2026" /></label>
+          <label>Budget cap per person ($)<input id="set-budget" type="number" step="0.01" min="0" /></label>
+          <div class="row">
+            <label>Draw date<input id="set-draw" type="date" /></label>
+            <label>Shopping deadline<input id="set-shopping" type="date" /></label>
+          </div>
+          <div class="row">
+            <label>Exchange date<input id="set-exchange" type="date" /></label>
+            <label>Shipping buffer (days)<input id="set-shipping" type="number" min="0" /></label>
+          </div>
+          <label>Circle (used to avoid repeats next year)<input id="set-circle" type="text" placeholder="alvarez-family" /></label>
+          <label>Notes<textarea id="set-notes" rows="2" placeholder="Bring the kids, 7pm"></textarea></label>
+          <fieldset class="rules">
+            <legend>Rules</legend>
+            <label class="check"><input type="checkbox" id="rule-household" /> Nobody draws from their own household</label>
+            <label class="check"><input type="checkbox" id="rule-group" /> Nobody draws from their own group</label>
+            <label class="check"><input type="checkbox" id="rule-repeats" /> Avoid pairings from a previous exchange</label>
+            <label class="check"><input type="checkbox" id="rule-reveal" /> Allow everyone to see the whole list</label>
+          </fieldset>
+          <button class="btn primary" type="submit">Save settings</button>
+        </form>
+      </div>
+
+      <div class="card">
+        <h2>People</h2>
+        <table class="data">
+          <thead><tr><th>Name</th><th>Email</th><th>Household</th><th>Code</th><th></th></tr></thead>
+          <tbody id="participants-body"></tbody>
+        </table>
+        <form id="participant-form" class="row add-row">
+          <input id="p-name" type="text" placeholder="Name" required />
+          <input id="p-email" type="email" placeholder="email" />
+          <input id="p-household" type="text" placeholder="Household" />
+          <input id="p-groups" type="text" placeholder="groups (comma)" />
+          <button class="btn" type="submit">Add</button>
+        </form>
+
+        <h3>Edit person</h3>
+        <form id="edit-participant-form" class="stack hidden">
+          <input type="hidden" id="e-id" />
+          <label>Name<input id="e-name" type="text" /></label>
+          <label>Email<input id="e-email" type="email" /></label>
+          <label>Household<input id="e-household" type="text" /></label>
+          <label>Groups (comma separated)<input id="e-groups" type="text" /></label>
+          <label>Access code<input id="e-code" type="text" /></label>
+          <label>Wishlist (one per line: item | price | note)
+            <textarea id="e-wishes" rows="4" placeholder="Scarf | 28.00 | dark colours"></textarea>
+          </label>
+          <label>Purchased (one per line: gift | price)
+            <textarea id="e-purchased" rows="2" placeholder="Scarf | 26.50"></textarea>
+          </label>
+          <label>Notes<textarea id="e-notes" rows="2"></textarea></label>
+          <div class="row">
+            <button class="btn primary" type="submit">Save person</button>
+            <button class="btn ghost" type="button" id="btn-cancel-edit">Cancel</button>
+          </div>
+        </form>
+
+        <h3>Never draw each other</h3>
+        <form id="exclude-form" class="row add-row">
+          <select id="x-a"></select>
+          <span class="sep">does not draw</span>
+          <select id="x-b"></select>
+          <button class="btn" type="submit">Exclude</button>
+        </form>
+        <ul id="exclusions-list" class="chips"></ul>
+      </div>
+    </div>
+  </section>
+
+  <section id="panel-draw" class="panel">
+    <div class="card">
+      <h2>The draw</h2>
+      <p class="muted">Every participant gives to exactly one person and receives exactly one gift. Nobody draws themselves, nobody draws a household member, and no pairing repeats a previous exchange.</p>
+      <div class="row">
+        <button id="btn-run-draw" class="btn primary">Run the draw</button>
+        <button id="btn-redraw" class="btn">Run again (new shuffle)</button>
+      </div>
+      <div id="draw-status" class="status"></div>
+      <table class="data" id="assignment-table">
+        <thead><tr><th>Gives to</th><th>Receives from</th><th>Household</th><th>Notes</th></tr></thead>
+        <tbody id="assignment-body"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <section id="panel-readiness" class="panel">
+    <div class="card">
+      <h2>Is this exchange ready?</h2>
+      <div class="score-row">
+        <div class="score" id="score-value">--</div>
+        <div>
+          <div class="verdict" id="verdict-label">No exchange loaded</div>
+          <div class="muted" id="score-summary"></div>
+        </div>
+      </div>
+      <div id="axes-list" class="axes"></div>
+      <h3>Findings</h3>
+      <div id="findings-list" class="findings"></div>
+      <h3>Fix plan</h3>
+      <ol id="fix-list" class="fix-list"></ol>
+      <h3>Log this run</h3>
+      <form id="run-form" class="row add-row">
+        <label class="inline">Rating
+          <select id="run-rating">
+            <option value="5">5 - nailed it</option>
+            <option value="4">4 - good</option>
+            <option value="3">3 - fine</option>
+            <option value="2">2 - rough</option>
+            <option value="1">1 - a mess</option>
+          </select>
+        </label>
+        <input id="run-notes" type="text" placeholder="What happened?" />
+        <button class="btn" type="submit">Save run</button>
+      </form>
+      <div id="run-message" class="muted"></div>
+    </div>
+  </section>
+
+  <section id="panel-calendar" class="panel">
+    <div class="grid two">
+      <div class="card">
+        <h2>Dates</h2>
+        <ul id="dates-list" class="plain"></ul>
+        <h3>Exports</h3>
+        <ul class="plain" id="export-list">
+          <li><a id="export-md" href="#">Markdown plan</a></li>
+          <li><a id="export-csv" href="#">CSV roster</a></li>
+          <li><a id="export-ics" href="#">ICS calendar</a></li>
+          <li><a id="export-json" href="#">JSON bundle</a></li>
+          <li><a id="export-sheet" href="#">Participant cheat sheet</a></li>
+        </ul>
+      </div>
+      <div class="card">
+        <h2>Spend</h2>
+        <div class="score-row">
+          <div class="score" id="spend-total">--</div>
+          <div>
+            <div class="verdict" id="spend-label">Nothing recorded</div>
+            <div class="muted" id="spend-cap"></div>
+          </div>
+        </div>
+        <table class="data">
+          <thead><tr><th>Buyer</th><th>Gift</th><th>Price</th></tr></thead>
+          <tbody id="budget-body"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <section id="panel-reveal" class="panel">
+    <div class="card">
+      <h2>Your access code</h2>
+      <p class="muted">Each participant gets a six character code. The code shows only their own pairing - nobody else's.</p>
+      <form id="reveal-form" class="row add-row">
+        <input id="reveal-code" type="text" placeholder="e.g. 7KD2QW" maxlength="6" />
+        <button class="btn primary" type="submit">Reveal</button>
+      </form>
+      <div id="reveal-result" class="status"></div>
+    </div>
+  </section>
+</main>
+
+<div id="new-modal" class="modal hidden">
+  <div class="modal-box">
+    <h2>New exchange</h2>
+    <p class="muted">Paste a brief. Sections: [Exchange], [Participants], [Exclude], [Wishlist].</p>
+    <textarea id="brief-input" rows="14" spellcheck="false" placeholder="[Exchange]
+name: Family Secret Santa 2026
+budget: 50
+draw: 2026-12-01
+shopping: 2026-12-15
+exchange: 2026-12-24
+
+[Participants]
+Rosa Alvarez | rosa@example.com | Alvarez
+Miguel Alvarez | miguel@example.com | Alvarez"></textarea>
+    <div id="brief-error" class="error"></div>
+    <div class="row">
+      <button class="btn primary" id="btn-create-brief">Create exchange</button>
+      <button class="btn ghost" id="btn-close-new">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<div id="sample-modal" class="modal hidden">
+  <div class="modal-box">
+    <h2>Sample exchanges</h2>
+    <div id="sample-list"></div>
+    <div class="row"><button class="btn ghost" id="btn-close-samples">Close</button></div>
+  </div>
+</div>
+
+<div id="toast" class="toast hidden"></div>
+<script src="/static/app.js"></script>
+</body>
+</html>
